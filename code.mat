@@ -1,1 +1,42 @@
 % codigo do MatLab %
+% Define o diretório base para o participante 40
+baseDir = '/Users/bernardodireito/Documents/ATD/Projeto_atd/data/40';
+files = dir(fullfile(baseDir, '*.wav'));
+nFiles = numel(files);
+
+% Pré-aloca vetores para armazenar os dados
+diretorio = cell(nFiles,1);
+nomeFicheiro = cell(nFiles,1);
+participante = zeros(nFiles,1);
+digito = zeros(nFiles,1);
+repeticao = zeros(nFiles,1);
+
+% Loop para processar cada arquivo
+for i = 1:nFiles
+    % Armazena o diretório completo e o nome do arquivo
+    diretorio{i} = fullfile(files(i).folder, files(i).name);
+    nomeFicheiro{i} = files(i).name;
+    
+    % Supondo que o nome do arquivo esteja no formato "d_p_r.wav"
+    partes = strsplit(files(i).name, '_');
+    
+    % Extração dos dados:
+    % - partes{1} é o dígito
+    % - partes{2} é o participante
+    % - partes{3} contém o número de repetição junto com a extensão (ex.: '42.wav')
+    digito(i) = str2double(partes{1});
+    participante(i) = str2double(partes{2});
+    
+    % Remove a extensão para obter apenas o número de repetição
+    repStr = strtok(partes{3}, '.');
+    repeticao(i) = str2double(repStr);
+end
+
+
+% Cria a tabela com as informações desejadas
+T = table(caminhos, nomesArquivos, participantes, digitos, repeticoes, ...
+    'VariableNames', {'Diretorio', 'NomeFicheiro', 'Participante', 'Digito', 'Repeticao'});
+T = sortrows(T, {'Digito', 'Repeticao'});
+
+% Exibe as 5 primeiras linhas da tabela
+disp(T(1:500,:))
