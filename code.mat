@@ -70,8 +70,8 @@ disp('--- Tabela com Metadados e Sinais (primeiras 10 linhas) ---');
 disp(T(1:min(10,height(T)), :));
 
 %% PONTO 3: REPRESENTAR GRAFICAMENTE OS SINAIS BRUTOS (DIGITOS 0-9, REPETIÇÃO 5)
-figure('Name','Gráficos dos Áudios Originais','NumberTitle','off');
-for d = 0:8  % Plot digits 0-8 to match Figure 2 (3x3 grid)
+fig1 = figure('Name','Gráficos dos Áudios Originais','NumberTitle','off');
+for d = 0:8  % Plot digits 0-8 em uma grid 3x3
     subplot(3,3,d+1);
     idx = find(T.Digito == d & T.Repeticao == 5, 1);
     if ~isempty(idx) && ~isempty(T.AudioSignal{idx})
@@ -82,13 +82,18 @@ for d = 0:8  % Plot digits 0-8 to match Figure 2 (3x3 grid)
         xlabel('Tempo (s)');
         ylabel('Amplitude');
         title(sprintf('Dígito %d, Repetição 5', d));
-        ylim([-1 1]);  % Match Figure 2 amplitude range
+
+        % Ajusta o eixo Y de forma automática, permitindo ver todo o sinal
+        ylim('auto');
+
         grid on;
     else
         title(sprintf('Dígito %d (não encontrado)', d));
     end
 end
 sgtitle('Gráficos dos Áudios Originais');
+print(fig1, '-dpng', 'graficos_audios_originais.png');  % Salva como PNG
+
 
 %% PONTO 4: PRÉ-PROCESSAMENTO DOS SINAIS
 % Passos: 1) Remoção de silêncio inicial
@@ -108,7 +113,7 @@ end
 T.PreprocSignal = preprocSignals;
 
 %% PONTO 5: REPRESENTAR GRAFICAMENTE OS SINAIS PRÉ-PROCESSADOS (DIGITOS 0-9, REPETIÇÃO 5)
-figure('Name','Gráficos dos Áudios Pré-Processados','NumberTitle','off');
+fig2 = figure('Name','Gráficos dos Áudios Pré-Processados','NumberTitle','off');
 for d = 0:8  % Plot digits 0-8 to match Figure 2 style
     subplot(3,3,d+1);
     idx = find(T.Digito == d & T.Repeticao == 5, 1);
@@ -127,6 +132,7 @@ for d = 0:8  % Plot digits 0-8 to match Figure 2 style
     end
 end
 sgtitle('Gráficos dos Áudios Pré-Processados');
+print(fig2, '-dpng', 'graficos_audios_preprocessados.png');  % Salva como PNG
 
 %% PONTO 6: COMPARAÇÃO VISUAL DOS GRÁFICOS (DESCRIÇÃO NO TEXTO ABAIXO)
 
@@ -153,7 +159,7 @@ T.Duration    = featuresMatrix(:,5);
 
 %% PONTO 8: VISUALIZAÇÃO DAS FEATURES
 % A) Boxplot e 3D Scatter para replicar Figure 3
-figure('Name','Representação gráfica das características extraídas','NumberTitle','off');
+fig3 = figure('Name','Representação gráfica das características extraídas','NumberTitle','off');
 
 % Boxplot de Total Energy
 subplot(1,2,1);
@@ -176,9 +182,10 @@ ylabel('Std Dev');
 zlabel('Duration (s)');
 title('3D Scatter de ZCR, Std Dev e Duration');
 legend(cellstr(num2str((0:9)')), 'Location', 'eastoutside');
+print(fig3, '-dpng', 'representacao_grafica_features.png');  % Salva como PNG
 
 % B) Scatter e Boxplots para todas as features (original)
-figure('Name','Scatter das 5 Features','NumberTitle','off');
+fig4 = figure('Name','Scatter das 5 Features','NumberTitle','off');
 featureNames = {'Total Energy','Std Dev','Max Amp','ZCR','Duration (s)'};
 for f = 1:nFeatures
     subplot(1,nFeatures,f);
@@ -194,8 +201,9 @@ for f = 1:nFeatures
     title(featureNames{f});
 end
 sgtitle('Scatter das Features extraídas');
+print(fig4, '-dpng', 'scatter_5_features.png');  % Salva como PNG
 
-figure('Name','Boxplots das 5 Features','NumberTitle','off');
+fig5 = figure('Name','Boxplots das 5 Features','NumberTitle','off');
 for f = 1:nFeatures
     subplot(1,nFeatures,f);
     boxchart(categorical(T.Digito), featuresMatrix(:,f));
@@ -204,6 +212,7 @@ for f = 1:nFeatures
     title(featureNames{f});
 end
 sgtitle('Boxplots das Features extraídas');
+print(fig5, '-dpng', 'boxplots_5_features.png');  % Salva como PNG
 
 %% PONTO 9: REMOÇÃO DOS SINAIS E SALVAMENTO
 T.AudioSignal   = [];
