@@ -1,274 +1,276 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MAIN.M
+% AUDIO_DIGIT_ANALYSIS.M
 %
-% Este script realiza as seguintes tarefas:
-%  1) Cria uma tabela de metadados para os áudios e importa os sinais.
-%  2) Realiza pré-processamento dos sinais (remoção de silêncio inicial,
-%     normalização, sem ajuste de duração para features).
-%  3) Representa graficamente os sinais brutos para dígitos 0-9, repetição 5.
-%  4) Extrai 5 características temporais de cada sinal antes de padding.
-%  5) Representa graficamente os sinais pré-processados para dígitos 0-9, repetição 5.
-%  6) Compara visualmente os gráficos de 3 e 5 (descrito no texto).
-%  7) Visualiza as features e identifica as melhores para discriminação.
-%  8) Remove os sinais de áudio da tabela e salva em finalData.mat.
+% This script performs the following tasks for digit identification from audio signals:
+%  1) Creates a metadata table for audio files and imports the signals.
+%  2) Preprocesses the audio signals (removes initial silence, normalizes amplitude).
+%  3) Plots raw audio signals for digits 0–9, repetition 5 (replicates Figure 2).
+%  4) Extracts 5 temporal features from each preprocessed signal.
+%  5) Plots preprocessed audio signals for digits 0–9, repetition 5.
+%  6) Visually compares the plots from steps 3 and 5 (described in the text).
+%  7) Visualizes the features and identifies the best for digit discrimination (replicates Figure 3).
+%  8) Removes audio signals from the table and saves to finalAudioData.mat.
 %
-% Autor: [Seu Nome]
+% Author: [Your Name]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear; close all; clc;
 
-%% PARÂMETROS INICIAIS
-baseDir      = 'samples';    % Pasta onde estão os ficheiros .wav
-participant  = 40;           % ID do participante
-digitsRange  = 0:9;          % Dígitos de 0 a 9
-repetitions  = 0:49;         % 50 gravações de cada dígito
-nDigits      = length(digitsRange);
-nReps        = length(repetitions);
+%% INITIAL_PARAMETERS
+audioFolderPath      = 'samples';    % Path to folder containing .wav audio files
+participantID        = 40;           % Unique identifier for the participant
+digitNumbers         = 0:9;          % Digits from 0 to 9
+repetitionNumbers    = 0:49;         % 50 recordings per digit
+numberOfDigits       = length(digitNumbers);
+numberOfRepetitions  = length(repetitionNumbers);
 
-%% PONTO 1 e 2: CRIAR ESTRUTURA (TABELA) E IMPORTAR SINAIS
-nTotal = nDigits * nReps;
-diretorio       = cell(nTotal,1);
-nomeFicheiro    = cell(nTotal,1);
-participanteVec = zeros(nTotal,1);
-digito          = zeros(nTotal,1);
-repeticao       = zeros(nTotal,1);
-audioSignal     = cell(nTotal,1);
-fsVal           = zeros(nTotal,1);
+%% STEP_1_AND_2: CREATE_METADATA_TABLE_AND_IMPORT_AUDIO_SIGNALS
+totalRecordings = numberOfDigits * numberOfRepetitions;
+audioFilePath        = cell(totalRecordings, 1);
+audioFileName        = cell(totalRecordings, 1);
+participantIDVector  = zeros(totalRecordings, 1);
+digitValue           = zeros(totalRecordings, 1);
+repetitionNumber     = zeros(totalRecordings, 1);
+rawAudioSignal       = cell(totalRecordings, 1);
+samplingRate         = zeros(totalRecordings, 1);
 
-idx = 1;
-for d = digitsRange
-    for r = repetitions
-        nomeArq = sprintf('%d_%d_%d.wav', d, participant, r);
-        caminho = fullfile(baseDir, nomeArq);
+recordingIndex = 1;
+for currentDigit = digitNumbers
+    for currentRepetition = repetitionNumbers
+        fileNameStr = sprintf('%d_%d_%d.wav', currentDigit, participantID, currentRepetition);
+        filePath = fullfile(audioFolderPath, fileNameStr);
 
-        diretorio{idx}    = caminho;
-        nomeFicheiro{idx} = nomeArq;
-        participanteVec(idx) = participant;
-        digito(idx)       = d;
-        repeticao(idx)    = r;
+        audioFilePath{recordingIndex}    = filePath;
+        audioFileName{recordingIndex}     = fileNameStr;
+        participantIDVector(recordingIndex) = participantID;
+        digitValue(recordingIndex)       = currentDigit;
+        repetitionNumber(recordingIndex) = currentRepetition;
 
         try
-            [sig, fs] = audioread(caminho);
+            [signalData, sampleRate] = audioread(filePath);
         catch ME
-            warning('Erro ao ler %s: %s', caminho, ME.message);
-            sig = []; fs = NaN;
+            warning('Error reading %s: %s', filePath, ME.message);
+            signalData = []; sampleRate = NaN;
         end
 
-        audioSignal{idx} = sig;
-        fsVal(idx)       = fs;
+        rawAudioSignal{recordingIndex} = signalData;
+        samplingRate(recordingIndex)   = sampleRate;
 
-        idx = idx + 1;
+        recordingIndex = recordingIndex + 1;
     end
 end
 
-T = table(diretorio, nomeFicheiro, participanteVec, digito, repeticao, ...
-          audioSignal, fsVal, ...
-    'VariableNames', {'Diretorio','NomeFicheiro','Participante','Digito',...
-                      'Repeticao','AudioSignal','Fs'});
+metadataTable = table(audioFilePath, audioFileName, participantIDVector, digitValue, repetitionNumber, ...
+                      rawAudioSignal, samplingRate, ...
+    'VariableNames', {'AudioFilePath', 'AudioFileName', 'ParticipantID', 'DigitValue', ...
+                      'RepetitionNumber', 'RawAudioSignal', 'SamplingRate'});
 
-disp('--- Tabela com Metadados e Sinais (primeiras 10 linhas) ---');
-disp(T(1:min(10,height(T)), :));
+disp('--- Metadata Table with Audio Signals (first 10 rows) ---');
+disp(metadataTable(1:min(10, height(metadataTable)), :));
 
-%% PONTO 3: REPRESENTAR GRAFICAMENTE OS SINAIS BRUTOS (DIGITOS 0-9, REPETIÇÃO 5)
-fig1 = figure('Name','Gráficos dos Áudios Originais','NumberTitle','off');
-for d = 0:8  % Plot digits 0-8 em uma grid 3x3
-    subplot(3,3,d+1);
-    idx = find(T.Digito == d & T.Repeticao == 5, 1);
-    if ~isempty(idx) && ~isempty(T.AudioSignal{idx})
-        sig = T.AudioSignal{idx};
-        fs = T.Fs(idx);
-        t = (0:length(sig)-1)/fs;
-        plot(t, sig, 'b');
-        xlabel('Tempo (s)');
+%% STEP_3: PLOT_RAW_AUDIO_SIGNALS (DIGITS 0–9, REPETITION 5)
+figure('Name', 'OriginalAudioSignalPlots', 'NumberTitle', 'off', 'Position', [100 100 1200 800]);
+for currentDigit = 0:8  % Plot digits 0–8 in a 3x3 grid to match Figure 2
+    subplot(3, 3, currentDigit + 1);
+    signalIndex = find(metadataTable.DigitValue == currentDigit & metadataTable.RepetitionNumber == 5, 1);
+    if ~isempty(signalIndex) && ~isempty(metadataTable.RawAudioSignal{signalIndex})
+        signalData = metadataTable.RawAudioSignal{signalIndex};
+        sampleRate = metadataTable.SamplingRate(signalIndex);
+        timeAxis = (0:length(signalData) - 1) / sampleRate;
+        plot(timeAxis, signalData, 'b', 'LineWidth', 2);  % Blue line, thicker for visibility
+        xlabel('Time (s)', 'FontSize', 12);
+        ylabel('Amplitude', 'FontSize', 12);
+        title(sprintf('Digit %d, Repetition 5', currentDigit), 'FontSize', 14);
+        switch currentDigit
+            case {0, 2, 8}
+                ylim([-0.02 0.02]);
+            case {1, 3, 4, 5, 7}
+                ylim([-0.03 0.03]);
+            case 6
+                ylim([-0.04 0.04]);
+        end
+        grid on;
+        set(gca, 'FontSize', 10);
+    else
+        title(sprintf('Digit %d (not found)', currentDigit), 'FontSize', 14);
+    end
+end
+sgtitle('Original Audio Signal Plots', 'FontSize', 16);
+
+%% STEP_4: PREPROCESS_AUDIO_SIGNALS
+% Steps: 1) Remove initial silence based on energy threshold
+%        2) Normalize amplitude to [-1, 1]
+% Note: No padding applied, as not required for features or plots
+preprocessedAudioSignals = cell(totalRecordings, 1);
+
+for i = 1:totalRecordings
+    if ~isempty(metadataTable.RawAudioSignal{i})
+        preprocessedSignal = removeInitialSilenceAndNormalize(metadataTable.RawAudioSignal{i}, metadataTable.SamplingRate(i));
+    else
+        preprocessedSignal = [];
+    end
+    preprocessedAudioSignals{i} = preprocessedSignal;
+end
+
+metadataTable.PreprocessedAudioSignal = preprocessedAudioSignals;
+
+%% STEP_5: PLOT_PREPROCESSED_AUDIO_SIGNALS (DIGITS 0–9, REPETITION 5)
+figure('Name', 'PreprocessedAudioSignalPlots', 'NumberTitle', 'off');
+for currentDigit = 0:8  % Plot digits 0–8 in a 3x3 grid
+    subplot(3, 3, currentDigit + 1);
+    signalIndex = find(metadataTable.DigitValue == currentDigit & metadataTable.RepetitionNumber == 5, 1);
+    if ~isempty(signalIndex) && ~isempty(metadataTable.PreprocessedAudioSignal{signalIndex})
+        signalData = metadataTable.PreprocessedAudioSignal{signalIndex};
+        sampleRate = metadataTable.SamplingRate(signalIndex);
+        timeAxis = (0:length(signalData) - 1) / sampleRate;
+        plot(timeAxis, signalData, 'b');
+        xlabel('Time (s)');
         ylabel('Amplitude');
-        title(sprintf('Dígito %d, Repetição 5', d));
-
-        % Ajusta o eixo Y de forma automática, permitindo ver todo o sinal
-        ylim('auto');
-
+        title(sprintf('Digit %d, Repetition 5', currentDigit));
+        ylim([-1 1]);  % Normalized amplitude range
         grid on;
     else
-        title(sprintf('Dígito %d (não encontrado)', d));
+        title(sprintf('Digit %d (not found)', currentDigit));
     end
 end
-sgtitle('Gráficos dos Áudios Originais');
-print(fig1, '-dpng', 'graficos_audios_originais.png');  % Salva como PNG
+sgtitle('Preprocessed Audio Signal Plots');
 
+%% STEP_6: VISUAL_COMPARISON_OF_PLOTS
+% Description to be provided in accompanying text as per project requirements
 
-%% PONTO 4: PRÉ-PROCESSAMENTO DOS SINAIS
-% Passos: 1) Remoção de silêncio inicial
-%         2) Normalização para [-1, 1]
-%         (Sem padding, pois não é necessário para features ou plots)
-preprocSignals = cell(nTotal,1);
+%% STEP_7: EXTRACT_TEMPORAL_FEATURES
+% Features extracted: 1) Total Energy, 2) Standard Deviation, 3) Maximum Amplitude,
+%                     4) Zero Crossing Rate, 5) Duration (seconds)
+numberOfFeatures = 5;
+featureMatrix = zeros(totalRecordings, numberOfFeatures);
 
-for i = 1:nTotal
-    if ~isempty(T.AudioSignal{i})
-        ppSig = preprocessSignal(T.AudioSignal{i}, T.Fs(i));
+for i = 1:totalRecordings
+    if ~isempty(metadataTable.PreprocessedAudioSignal{i})
+        featureValues = extractTemporalFeatures(metadataTable.PreprocessedAudioSignal{i}, metadataTable.SamplingRate(i));
     else
-        ppSig = [];
+        featureValues = zeros(1, numberOfFeatures);
     end
-    preprocSignals{i} = ppSig;
+    featureMatrix(i, :) = featureValues;
 end
 
-T.PreprocSignal = preprocSignals;
+metadataTable.TotalEnergy      = featureMatrix(:, 1);
+metadataTable.StandardDeviation = featureMatrix(:, 2);
+metadataTable.MaximumAmplitude  = featureMatrix(:, 3);
+metadataTable.ZeroCrossingRate  = featureMatrix(:, 4);
+metadataTable.Duration         = featureMatrix(:, 5);
 
-%% PONTO 5: REPRESENTAR GRAFICAMENTE OS SINAIS PRÉ-PROCESSADOS (DIGITOS 0-9, REPETIÇÃO 5)
-fig2 = figure('Name','Gráficos dos Áudios Pré-Processados','NumberTitle','off');
-for d = 0:8  % Plot digits 0-8 to match Figure 2 style
-    subplot(3,3,d+1);
-    idx = find(T.Digito == d & T.Repeticao == 5, 1);
-    if ~isempty(idx) && ~isempty(T.PreprocSignal{idx})
-        sig = T.PreprocSignal{idx};
-        fs = T.Fs(idx);
-        t = (0:length(sig)-1)/fs;
-        plot(t, sig, 'b');
-        xlabel('Tempo (s)');
-        ylabel('Amplitude');
-        title(sprintf('Dígito %d, Repetição 5', d));
-        ylim([-1 1]);  % Normalized amplitude
-        grid on;
-    else
-        title(sprintf('Dígito %d (não encontrado)', d));
-    end
-end
-sgtitle('Gráficos dos Áudios Pré-Processados');
-print(fig2, '-dpng', 'graficos_audios_preprocessados.png');  % Salva como PNG
+%% STEP_8: VISUALIZE_FEATURES
+% Part A: Boxplot and 3D Scatter to replicate Figure 3
 
-%% PONTO 6: COMPARAÇÃO VISUAL DOS GRÁFICOS (DESCRIÇÃO NO TEXTO ABAIXO)
-
-%% PONTO 7: CÁLCULO DAS FEATURES
-% Features: 1) Energia total, 2) Desvio padrão, 3) Amplitude máxima,
-%           4) Zero Crossing Rate, 5) Duração (s)
-nFeatures = 5;
-featuresMatrix = zeros(nTotal, nFeatures);
-
-for i = 1:nTotal
-    if ~isempty(T.PreprocSignal{i})
-        feats = computeFeatures(T.PreprocSignal{i}, T.Fs(i));
-    else
-        feats = zeros(1, nFeatures);
-    end
-    featuresMatrix(i,:) = feats;
-end
-
-T.TotalEnergy = featuresMatrix(:,1);
-T.StdDev      = featuresMatrix(:,2);
-T.MaxAmp      = featuresMatrix(:,3);
-T.ZCR         = featuresMatrix(:,4);
-T.Duration    = featuresMatrix(:,5);
-
-%% PONTO 8: VISUALIZAÇÃO DAS FEATURES
-% A) Boxplot e 3D Scatter para replicar Figure 3
-fig3 = figure('Name','Representação gráfica das características extraídas','NumberTitle','off');
-
-% Boxplot de Total Energy
-subplot(1,2,1);
-boxchart(categorical(T.Digito), T.TotalEnergy, 'BoxFaceColor', 'b', 'MarkerColor', [0.7 0.7 1]);
-xlabel('Dígito');
+% Boxplot of Total Energy by Digit
+figure('Name', 'Boxplot_TotalEnergy', 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
+boxchart(categorical(metadataTable.DigitValue), metadataTable.TotalEnergy, 'BoxFaceColor', 'b', 'MarkerColor', [0.7 0.7 1]);
+xlabel('Digit');
 ylabel('Total Energy');
-title('Boxplot de Total Energy por Dígito');
+title('Boxplot of Total Energy by Digit');
 
-% 3D Scatter de ZCR, StdDev, Duration
-subplot(1,2,2);
+% 3D Scatter Plot of Zero Crossing Rate, Standard Deviation, and Duration
+figure('Name', '3DScatter_Features', 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
 hold on;
-colors = [0.7 0.7 1; 1 0.7 0.7; 0 1 0; 1 0 0; 1 1 0; 0.5 0 0.5; 1 0.5 0; 0 1 1; 0.6 0.3 0; 0 0 0.5];
-for d = 0:9
-    idx = T.Digito == d;
-    scatter3(T.ZCR(idx), T.StdDev(idx), T.Duration(idx), 10, colors(d+1,:), 'filled');
+digitColors = [0.7 0.7 1; 1 0.7 0.7; 0 1 0; 1 0 0; 1 1 0; 0.5 0 0.5; 1 0.5 0; 0 1 1; 0.6 0.3 0; 0 0 0.5];
+for currentDigit = 0:9
+    digitIndices = metadataTable.DigitValue == currentDigit;
+    scatter3(metadataTable.ZeroCrossingRate(digitIndices), metadataTable.StandardDeviation(digitIndices), ...
+             metadataTable.Duration(digitIndices), 10, digitColors(currentDigit + 1, :), 'filled');
 end
 hold off;
-xlabel('ZCR');
-ylabel('Std Dev');
+xlabel('Zero Crossing Rate');
+ylabel('Standard Deviation');
 zlabel('Duration (s)');
-title('3D Scatter de ZCR, Std Dev e Duration');
+title('3D Scatter of Zero Crossing Rate, Standard Deviation, and Duration');
 legend(cellstr(num2str((0:9)')), 'Location', 'eastoutside');
-print(fig3, '-dpng', 'representacao_grafica_features.png');  % Salva como PNG
 
-% B) Scatter e Boxplots para todas as features (original)
-fig4 = figure('Name','Scatter das 5 Features','NumberTitle','off');
-featureNames = {'Total Energy','Std Dev','Max Amp','ZCR','Duration (s)'};
-for f = 1:nFeatures
-    subplot(1,nFeatures,f);
+% Scatter Plots of Extracted Features
+featureNames = {'Total Energy', 'Standard Deviation', 'Maximum Amplitude', 'Zero Crossing Rate', 'Duration (s)'};
+for featureIndex = 1:numberOfFeatures
+    if mod(featureIndex, 2) == 1
+        figure('Name', ['ScatterPlot_', featureNames{featureIndex}], 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
+    end
+    subplot(1, 2, mod(featureIndex - 1, 2) + 1);
     hold on;
-    for d = digitsRange
-        idxD = (T.Digito == d);
-        scatter(repmat(d,1,sum(idxD)), featuresMatrix(idxD,f), 'filled');
+    for currentDigit = digitNumbers
+        digitIndices = (metadataTable.DigitValue == currentDigit);
+        scatter(repmat(currentDigit, 1, sum(digitIndices)), featureMatrix(digitIndices, featureIndex), 'filled');
     end
     hold off;
-    xlabel('Dígito');
-    ylabel(featureNames{f});
-    xticks(digitsRange);
-    title(featureNames{f});
+    xlabel('Digit');
+    ylabel(featureNames{featureIndex});
+    xticks(digitNumbers);
+    title(featureNames{featureIndex});
 end
-sgtitle('Scatter das Features extraídas');
-print(fig4, '-dpng', 'scatter_5_features.png');  % Salva como PNG
 
-fig5 = figure('Name','Boxplots das 5 Features','NumberTitle','off');
-for f = 1:nFeatures
-    subplot(1,nFeatures,f);
-    boxchart(categorical(T.Digito), featuresMatrix(:,f));
-    xlabel('Dígito');
-    ylabel(featureNames{f});
-    title(featureNames{f});
+% Boxplots of Extracted Features
+for featureIndex = 1:numberOfFeatures
+    if mod(featureIndex, 2) == 1
+        figure('Name', ['Boxplot_', featureNames{featureIndex}], 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
+    end
+    subplot(1, 2, mod(featureIndex - 1, 2) + 1);
+    boxchart(categorical(metadataTable.DigitValue), featureMatrix(:, featureIndex));
+    xlabel('Digit');
+    ylabel(featureNames{featureIndex});
+    title(featureNames{featureIndex});
 end
-sgtitle('Boxplots das Features extraídas');
-print(fig5, '-dpng', 'boxplots_5_features.png');  % Salva como PNG
 
-%% PONTO 9: REMOÇÃO DOS SINAIS E SALVAMENTO
-T.AudioSignal   = [];
-T.PreprocSignal = [];
-save('finalData.mat', 'T');
+%% STEP_9: REMOVE_AUDIO_SIGNALS_AND_SAVE
+metadataTable.RawAudioSignal = [];
+metadataTable.PreprocessedAudioSignal = [];
+save('finalAudioData.mat', 'metadataTable');
 
-disp('--- Fim: Estrutura de dados salva em finalData.mat ---');
+disp('--- End: Audio data structure saved in finalAudioData.mat ---');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% FUNÇÕES AUXILIARES
+% AUXILIARY_FUNCTIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [ppSig] = preprocessSignal(sig, fs)
-    frameSizeSec = 0.001;
-    frameSamples = round(frameSizeSec * fs);
-    numFrames    = floor(length(sig) / frameSamples);
-    energy       = getFrameEnergy(sig, frameSamples, numFrames);
+function [preprocessedSignal] = removeInitialSilenceAndNormalize(signal, sampleRate)
+    frameDurationSec = 0.001;  % Duration of each frame in seconds
+    frameSamples = round(frameDurationSec * sampleRate);
+    numberOfFrames = floor(length(signal) / frameSamples);
+    frameEnergy = calculateFrameEnergy(signal, frameSamples, numberOfFrames);
 
-    energyThreshold = 0.01;
-    startFrame = find(energy > energyThreshold, 1);
+    energyThreshold = 0.01;  % Threshold to detect signal start
+    startFrame = find(frameEnergy > energyThreshold, 1);
     if isempty(startFrame)
         startFrame = 1;
     end
-    startSample = (startFrame - 1)*frameSamples + 1;
+    startSample = (startFrame - 1) * frameSamples + 1;
 
-    ppSig = sig(startSample:end);
+    preprocessedSignal = signal(startSample:end);
 
-    minVal = min(ppSig);
-    maxVal = max(ppSig);
-    if (maxVal - minVal) < 1e-12
-        ppSig = zeros(size(ppSig));
+    minValue = min(preprocessedSignal);
+    maxValue = max(preprocessedSignal);
+    if (maxValue - minValue) < 1e-12  % Avoid division by zero
+        preprocessedSignal = zeros(size(preprocessedSignal));
     else
-        ppSig = (ppSig - minVal) / (maxVal - minVal);  % [0, 1]
-        ppSig = 2*ppSig - 1;                           % [-1, 1]
+        preprocessedSignal = (preprocessedSignal - minValue) / (maxValue - minValue);  % Scale to [0, 1]
+        preprocessedSignal = 2 * preprocessedSignal - 1;                              % Scale to [-1, 1]
     end
 end
 
-function energyVec = getFrameEnergy(y, frameSamples, numFrames)
-    energyVec = zeros(numFrames, 1);
-    for j = 1:numFrames
-        frame = y((j-1)*frameSamples + 1 : j*frameSamples);
-        energyVec(j) = sum(frame.^2);
+function frameEnergy = calculateFrameEnergy(signal, frameSamples, numberOfFrames)
+    frameEnergy = zeros(numberOfFrames, 1);
+    for frameIndex = 1:numberOfFrames
+        frame = signal((frameIndex - 1) * frameSamples + 1 : frameIndex * frameSamples);
+        frameEnergy(frameIndex) = sum(frame .^ 2);
     end
 end
 
-function feats = computeFeatures(sig, fs)
-    feats = zeros(1,5);
-    feats(1) = sum(sig.^2);            % Energia total
-    feats(2) = std(sig);               % Desvio padrão
-    feats(3) = max(abs(sig));          % Amplitude máxima
-    feats(4) = zerocrossrate(sig);     % Zero Crossing Rate
-    feats(5) = length(sig)/fs;         % Duração em segundos
+function featureValues = extractTemporalFeatures(signal, sampleRate)
+    featureValues = zeros(1, 5);
+    featureValues(1) = sum(signal .^ 2);         % Total Energy
+    featureValues(2) = std(signal);              % Standard Deviation
+    featureValues(3) = max(abs(signal));         % Maximum Amplitude
+    featureValues(4) = calculateZeroCrossingRate(signal);  % Zero Crossing Rate
+    featureValues(5) = length(signal) / sampleRate;       % Duration in seconds
 end
 
-function zcr = zerocrossrate(sig)
-    s  = sign(sig);
-    ds = diff(s);
-    zcr = sum(ds ~= 0) / (length(sig)-1);
+function zeroCrossingRate = calculateZeroCrossingRate(signal)
+    signalSign = sign(signal);
+    signDifference = diff(signalSign);
+    zeroCrossingRate = sum(signDifference ~= 0) / (length(signal) - 1);
 end
