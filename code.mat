@@ -40,7 +40,7 @@ for currentDigit = digitNumbers
     for currentRepetition = repetitionNumbers
         % Cria uma string com o nome do arquivo de áudio no formato 'd_p_r.wav'
         fileNameStr = sprintf('%d_%d_%d.wav', currentDigit, participantID, currentRepetition);
-
+        
         % Constrói o caminho completo do arquivo de áudio
         filePath = fullfile(audioFolderPath, fileNameStr);
 
@@ -79,14 +79,14 @@ disp(metadataTable(1:min(10, height(metadataTable)), :));
 
 %% ETAPA_3: PLOTAR_SINAIS_DE_ÁUDIO_BRUTOS (DÍGITOS 0–9, REPETIÇÃO 5)
 figure('Name', 'OriginalAudioSignalPlots', 'NumberTitle', 'off', 'Position', [100 100 1200 800]);
-for currentDigit = 0:9
+for currentDigit = 0:9 
     subplot(5, 2, currentDigit + 1); % 5 por 2 !
     signalIndex = find(metadataTable.DigitValue == currentDigit & metadataTable.RepetitionNumber == 5, 1); % neste exemplo Ã© 5
     if ~isempty(signalIndex) && ~isempty(metadataTable.RawAudioSignal{signalIndex})
         signalData = metadataTable.RawAudioSignal{signalIndex};
         sampleRate = metadataTable.SamplingRate(signalIndex);
         timeAxis = (0:length(signalData) - 1) / sampleRate;
-        plot(timeAxis, signalData, 'b', 'LineWidth', 2);
+        plot(timeAxis, signalData, 'b', 'LineWidth', 2); 
         xlabel('Time (s)', 'FontSize', 12);
         ylabel('Amplitude', 'FontSize', 12);
         title(sprintf('Digit %d, Repetition 5', currentDigit), 'FontSize', 14);
@@ -129,7 +129,7 @@ metadataTable.PreprocessedAudioSignal = preprocessedAudioSignals;
 figure('Name', 'PreprocessedAudioSignalPlots', 'NumberTitle', 'off');
 
 % Plota os sinais de áudio pré-processados para os dígitos 0–9, repetição 5
-for currentDigit = 0:9  % Plota dígitos 0–8 em uma grade 3x3
+for currentDigit = 0:9  % Plota dígitos 0–9 em uma grade 5x2
     subplot(5, 2, currentDigit + 1);  % Cria um subplot para cada dígito
     signalIndex = find(metadataTable.DigitValue == currentDigit & metadataTable.RepetitionNumber == 5, 1);  % Encontra o índice do sinal correspondente
 
@@ -173,7 +173,7 @@ for i = 1:totalRecordings
     if ~isempty(metadataTable.PreprocessedAudioSignal{i})
         % Obtém o comprimento do sinal original
         originalSignalLength = length(metadataTable.RawAudioSignal{i});
-
+        
         % Extrai as características temporais do sinal pré-processado, passando o comprimento original
         featureValues = extractTemporalFeatures(metadataTable.PreprocessedAudioSignal{i}, metadataTable.SamplingRate(i), originalSignalLength);
     else
@@ -194,12 +194,13 @@ metadataTable.OriginalDuration = featureMatrix(:, 5);  % Duração original em s
 %% ETAPA_8: VISUALIZAR_CARACTERÍSTICAS
 % Parte A: Boxplot e Scatter 3D para replicar a Figura 3
 
+% BOXPLOT DA ENERGIA TOTAL DUPLICADO REMOVIDO
 % Parte A: Boxplot da Energia Total por Dígito
-figure('Name', 'Boxplot_TotalEnergy', 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
-boxchart(categorical(metadataTable.DigitValue), metadataTable.TotalEnergy, 'BoxFaceColor', 'b', 'MarkerColor', [0.7 0.7 1]);
-xlabel('Dígito');
-ylabel('Energia Total');
-title('Boxplot da Energia Total por Dígito');
+% figure('Name', 'Boxplot_TotalEnergy', 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
+% boxchart(categorical(metadataTable.DigitValue), metadataTable.TotalEnergy, 'BoxFaceColor', 'b', 'MarkerColor', [0.7 0.7 1]);
+% xlabel('Dígito');
+% ylabel('Energia Total');
+% title('Boxplot da Energia Total por Dígito');
 
 % Parte B: Dispersão 3D das Características: Taxa de Cruzamento por Zero, Desvio Padrão e Duração Original
 figure('Name', '3DScatter_Features', 'NumberTitle', 'off', 'Position', [100, 100, 1200, 600]);
@@ -271,57 +272,74 @@ disp('--- Fim: Estrutura de dados de áudio salva em finalAudioData.mat ---');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [preprocessedSignal] = removeInitialSilenceAndNormalize(signal, sampleRate, targetDurationSec)
-    frameDurationSec = 0.001;  % Duração de cada frame em segundos
-    frameSamples = round(frameDurationSec * sampleRate);
-    numberOfFrames = floor(length(signal) / frameSamples);
-    frameEnergy = calculateFrameEnergy(signal, frameSamples, numberOfFrames);
-
-    energyThreshold = 0.01;  % Limite para detetar o início do áudio
-    startFrame = find(frameEnergy > energyThreshold, 1);
-    if isempty(startFrame)
-        startFrame = 1;
+    % Calcula o tamanho da janela de movsum como 0,1% do comprimento total do sinal
+    % Usa-se max(1, round()) para garantir que o tamanho da janela seja pelo menos 1
+    windowSize = max(1, round(0.001 * length(signal)));
+    
+    % Calcula a soma móvel dos valores absolutos do sinal para detectar o início do sinal
+    % Isso ajuda a identificar onde o sinal de áudio significativo começa
+    movingSumSignal = movsum(abs(signal), windowSize);
+    
+    % Calcula o limiar de energia como 20% do valor máximo de energia
+    % Valor arbitrário escolhido para representar quando a energia do sinal é considerável
+    % 0,2 significa que consideramos o sinal relevante quando atinge 20% da energia máxima
+    limiar = 0.2 * max(movingSumSignal);
+    
+    % Encontra o primeiro índice onde o sinal móvel ultrapassa o limiar
+    % Isso indica o início do sinal de áudio significativo
+    startIndex = find(movingSumSignal > limiar, 1);
+    
+    % Se nenhum início for encontrado, usa o início do sinal
+    if isempty(startIndex)
+        startIndex = 1;
     end
-    startSample = (startFrame - 1) * frameSamples + 1;
-
-    preprocessedSignal = signal(startSample:end); % remove o silêncio inicial
-
-    % Normalização do sinal
-    minValue = min(preprocessedSignal);
-    maxValue = max(preprocessedSignal);
-    if (maxValue - minValue) < 1e-12  % Evitar divisão por zero
-        preprocessedSignal = zeros(size(preprocessedSignal));
-    else
-        preprocessedSignal = (preprocessedSignal - minValue) / (maxValue - minValue);  % Intervalo de [0, 1]
-        preprocessedSignal = 2 * preprocessedSignal - 1;                              % Intervalo de [-1, 1]
-    end
-
-    % Ajuste da duração para que todos os áudios tenham o mesmo tamanho
+    
+    % Extrai o sinal a partir do ponto de início detectado
+    preprocessedSignal = signal(startIndex:end);
+    
+    % Normalização de amplitude
+    % Primeiro, normaliza para o intervalo [0, 1]
+    % Subtrai o valor mínimo e divide pela variação total
+    preprocessedSignal = (preprocessedSignal - min(preprocessedSignal)) / ...
+                         (max(preprocessedSignal) - min(preprocessedSignal));
+    
+    % Em seguida, dimensiona para o intervalo [-1, 1] 
+    % Permite uma representação dinâmica melhor do sinal
+    preprocessedSignal = 2 * preprocessedSignal - 1;
+    
+    % Ajusta a duração do sinal para exatamente 0,6 segundos
     targetLength = round(targetDurationSec * sampleRate);
     currentLength = length(preprocessedSignal);
+    
+    % Verifica o comprimento do sinal e ajusta
     if currentLength < targetLength
-        % Preenche com zeros se o sinal for mais curto
+        % Se o sinal for mais curto, adiciona zeros
         preprocessedSignal = [preprocessedSignal; zeros(targetLength - currentLength, 1)];
     elseif currentLength > targetLength
-        % Trunca o sinal se for mais longo
+        % Se o sinal for mais longo, trunca
         preprocessedSignal = preprocessedSignal(1:targetLength);
     end
+    
+    % Normalização suave para prevenir cortes
+    % Garante que nenhum valor esteja exatamente em -1 ou 1
+    preprocessedSignal = preprocessedSignal * 0.99;
 end
 
-function frameEnergy = calculateFrameEnergy(signal, frameSamples, numberOfFrames)
-    frameEnergy = zeros(numberOfFrames, 1);
-    for frameIndex = 1:numberOfFrames
-        frame = signal((frameIndex - 1) * frameSamples + 1 : frameIndex * frameSamples);
-        frameEnergy(frameIndex) = sum(frame .^ 2);
-    end
-end
+% function frameEnergy = calculateFrameEnergy(signal, frameSamples, numberOfFrames)
+%    frameEnergy = zeros(numberOfFrames, 1);
+%    for frameIndex = 1:numberOfFrames
+%        frame = signal((frameIndex - 1) * frameSamples + 1 : frameIndex * frameSamples);
+%        frameEnergy(frameIndex) = sum(frame .^ 2);
+%    end
+%end
 
 % Função modificada para calcular o Fator de Crista (Ratio of peak amplitude to RMS - (Root Mean Square): Provides a measure of the magnitude of the signal - value) em vez da assimetria
-% Fator de crista -> Razão entre o valor de pico e o RMS (que é o valor quadrático médio)
+% Fator de crista -> Razão entre o valor de pico e o RMS (que é o valor quadrático médio) 
 function featureValues = extractTemporalFeatures(signal, sampleRate, originalSignalLength)
     featureValues = zeros(1, 5);
     featureValues(1) = sum(signal .^ 2);                        % Total Energy
     featureValues(2) = std(signal);                             % Standard Deviation
-
+    
     % Fator de Crista (Crest Factor) - Razão entre valor de pico e RMS
     peakValue = max(abs(signal));
     rmsValue = sqrt(mean(signal.^2));
@@ -330,7 +348,7 @@ function featureValues = extractTemporalFeatures(signal, sampleRate, originalSig
     else
         featureValues(3) = 0;
     end
-
+    
     featureValues(4) = calculateZeroCrossingRate(signal);       % Zero Crossing Rate
     featureValues(5) = originalSignalLength / sampleRate;       % Duration of original signal in seconds
 end
@@ -339,4 +357,4 @@ function zeroCrossingRate = calculateZeroCrossingRate(signal)
     signalSign = sign(signal);
     signDifference = diff(signalSign);
     zeroCrossingRate = sum(signDifference ~= 0) / (length(signal) - 1);
-end%                                                                                                                                
+end
